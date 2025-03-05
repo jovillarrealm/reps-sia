@@ -2,8 +2,12 @@ use clap::Parser;
 use regex::Regex;
 use rust_xlsxwriter::{Format, Workbook, XlsxError};
 use std::collections::{HashMap, VecDeque};
-use std::fs;
 use std::path::PathBuf;
+use eframe::egui;
+use rfd::FileDialog;
+use eframe::egui::IconData;
+use image::ImageReader;
+use std::io::Cursor;
 
 struct Solicitud {
     nombre_del_estudiante: String,
@@ -118,10 +122,10 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     motivos,
                 })
             } else if numero_solicitud.starts_with("CT") {
-                println!("Eh?");
+                println!("Eh? ");
                 println!("{}", chunk)
             } else {
-                println!("Eh?");
+                println!("Eh? QUE ES ESTO?????");
                 println!("{}", chunk)
             }
         } else if let Some(captures) = solicitud_regex2.captures(chunk) {
@@ -216,36 +220,45 @@ fn write_data_to_excel(
 
 fn process_pdf(
     pdf_path: PathBuf,
-    output_dir: PathBuf,
 ) -> Result<HashMap<String, Vec<Solicitud>>, String> {
-    // Create the output directory if it doesn't exist
-    if !output_dir.exists() {
-        fs::create_dir_all(&output_dir)
-            .map_err(|e| format!("Failed to create output directory: {}", e))?;
-    }
-
     // Generate output paths
     let file_stem = pdf_path.file_stem().unwrap().to_string_lossy().to_string();
-    let excel_path = output_dir.join(format!("{}.xlsx", file_stem));
-    let bytes = std::fs::read(pdf_path).expect("Error reading PDF file crate");
-    let out =
-        pdf_extract::extract_text_from_mem(&bytes).expect("Error extracting text from PDF crate");
-    // Check if pdftotext is available
-    //if !is_pdftotext_available(&pdftotext_path) {
-    //    return Err("pdftotext is not available. Please install it or provide a valid path.".to_string());
-    //}
+    let excel_path = pdf_path.parent().unwrap().join(format!("{}.xlsx", file_stem));
+    let excel_name = excel_path.file_name().unwrap().to_string_lossy().to_string();
 
-    // Convert PDF to text
-    //convert_pdf_to_txt(&pdf_path, &txt_path, &pdftotext_path)?;
+    if let Some(output_path) = FileDialog::new().set_file_name(excel_name).save_file() {
+        // Your existing processing logic should be integrated here
+        let bytes = std::fs::read(pdf_path).expect("Error reading PDF file crate");
+        let out =
+            pdf_extract::extract_text_from_mem(&bytes).expect("Error extracting text from PDF crate");
+    
+        // Extract data from text
+        let data = read_and_extract_data(&out)?;
+    
+        // Write data to Excel
+        write_data_to_excel(&data, &output_path)
+            .map_err(|e| format!("Failed to write Excel file: {}", e))?;
+        Ok(data)
+    } else {
+        Err("No output file selected".to_string())
+    }
 
-    // Extract data from text
-    let data = read_and_extract_data(&out)?;
+}
 
-    // Write data to Excel
-    write_data_to_excel(&data, &excel_path)
-        .map_err(|e| format!("Failed to write Excel file: {}", e))?;
-
-    Ok(data)
+fn load_icon() -> Option<IconData> {
+    let icon_bytes = include_bytes!("favicon.png"); // Replace with your favicon file
+    let image = ImageReader::new(Cursor::new(icon_bytes))
+        .with_guessed_format()
+        .ok()?
+        .decode()
+        .ok()?
+        .into_rgba8();
+    let (width, height) = image.dimensions();
+    Some(IconData {
+        rgba: image.into_raw(),
+        width,
+        height,
+    })
 }
 
 #[derive(Parser, Debug)]
@@ -262,13 +275,59 @@ struct Cli {
     output_dir: PathBuf,
 }
 
-fn main() {
-    let cli = Cli::parse();
 
-    let result = process_pdf(cli.pdf_path, cli.output_dir);
+struct PdfProcessorApp {
+    pdf_path: Option<PathBuf>,
+    status: String,
+}
 
-    match result {
-        Ok(_) => println!("PDF processed successfully."),
-        Err(e) => eprintln!("Error processing PDF: {}", e),
+impl Default for PdfProcessorApp {
+    fn default() -> Self {
+        Self {
+            pdf_path: None,
+            status: "Seleccione un archivo de PDF".to_string(),
+        }
     }
+}
+impl eframe::App for PdfProcessorApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Procesador de Reportes de Agenda del SIA");
+            
+            if ui.button("Seleccione PDF").clicked() {
+                if let Some(path) = FileDialog::new().add_filter("PDF", &["pdf"]).pick_file() {
+                    self.pdf_path = Some(path);
+                }
+            }
+            
+            if let Some(path) = &self.pdf_path {
+                ui.label(format!("PDF Seleccionado: {}", path.display()));
+            }
+            
+            if ui.button("Procesar PDF").clicked() {
+                if let Some(path) = &self.pdf_path {
+                    match process_pdf(path.clone()) {
+                        Ok(_) => self.status = "Aparentemente se pudo, pero validen el excel si está bien\n\n\nHola América".to_string(),
+                        Err(e) => self.status = format!("Error: {}", e),
+                    }
+                }
+            }
+            
+            ui.label(&self.status);
+        });
+    }
+}
+
+
+fn main() -> Result<(), eframe::Error> {
+    let mut options = eframe::NativeOptions::default();
+    options.viewport = egui::ViewportBuilder::default().with_icon(load_icon().unwrap()); // add icon
+
+    eframe::run_native(
+        "Procesador de PDF de Reporte de Agenda a Excel",
+        options,
+        Box::new(|_cc| Ok(Box::new(PdfProcessorApp::default()))),
+    )?;
+    Ok(())
+
 }

@@ -2,10 +2,27 @@
 name = "pdf_data_extractor"
 version = "0.2.0"
 edition = "2024"
+repository = "https://github.com/jovillarrealm/pdf_data_extractor.git"
+authors = ["jovillarrealm"]
+manufacturer = "La Nacho pero no me pagan entonces en realidad no son ellos bu"
+
+[package.metadata.wix]
+upgrade-guid = "1D5E6CCB-7223-42C8-9419-B5F47AA39C9E"
+path-guid = "CBA1CBC8-526E-4071-9EB6-35ED75283AC3"
+license = false
+eula = false
 
 [dependencies]
 rust_xlsxwriter = "0.84.0"
 clap = { version = "4.5.31", features = ["derive"] }
 pdf-extract = "0.8.2"
 regex = "1.11.1"
+rfd = "0.15.2"
+eframe = "0.31.1"
+image = "0.25.5"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
 
