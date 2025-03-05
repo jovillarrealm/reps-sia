@@ -307,7 +307,7 @@ impl eframe::App for PdfProcessorApp {
             if ui.button("Procesar PDF").clicked() {
                 if let Some(path) = &self.pdf_path {
                     match process_pdf(path.clone()) {
-                        Ok(_) => self.status = "Aparentemente se pudo, pero validen el excel si está bien\n\n\nHola América".to_string(),
+                        Ok(_) => self.status = "Aparentemente se pudo, pero validen el excel si está bien\n\n\nHola América :3".to_string(),
                         Err(e) => self.status = format!("Error: {}", e),
                     }
                 }
