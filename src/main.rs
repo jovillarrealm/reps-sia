@@ -14,7 +14,7 @@ struct Solicitud {
     plan_de_estudios: String,
     numero_solicitud: String,
     fecha_de_solicitud: String,
-    identificacion: String,
+    identificacion: usize,
     motivos: String,
 }
 
@@ -33,7 +33,7 @@ impl Iterator for SolicitudIterator<'_> {
             2 => Some(self.solicitud.plan_de_estudios.clone()),
             3 => Some(self.solicitud.numero_solicitud.clone()),
             4 => Some(self.solicitud.fecha_de_solicitud.clone()),
-            5 => Some(self.solicitud.identificacion.clone()),
+            5 => Some(self.solicitud.identificacion.to_string()),
             6 => Some(self.solicitud.motivos.clone()),
             _ => None,
         }
@@ -51,7 +51,7 @@ impl Solicitud {
 
 fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solicitud>>, String> {
     let pdf_contents = Regex::new(r"ID\s*|\s*ESPACIO PARA ANOTACIONES").unwrap()
-        .replace_all(pdf_contents, "");
+        .replace(pdf_contents, "").to_string();
 
     let id_sections_re = Regex::new(r"ID\s*\|\s*[A-Z]+\s*ID\s*\|\s*[A-Z\s]+").unwrap();
     let sections: Vec<&str> = id_sections_re.split(&pdf_contents).collect();
@@ -90,13 +90,15 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .get(2)
                 .map_or("", |m| m.as_str())
                 .trim()
-                .replace(" ", "")
-                .to_string();
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("")
+                .parse().expect("Error parsing identificacion");
             let plan_de_estudios = captures
                 .get(3)
                 .map_or("", |m| m.as_str())
                 .trim()
-                .to_string();
+                .into();
             let numero_solicitud = captures
                 .get(4)
                 .map_or("", |m| m.as_str())
@@ -159,7 +161,10 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .get(2)
                 .map_or("", |m| m.as_str())
                 .trim()
-                .to_string();
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("")
+                .parse().expect("Error parsing identificacion");
             let plan_de_estudios = captures
                 .get(3)
                 .map_or("", |m| m.as_str())
