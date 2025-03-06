@@ -67,9 +67,9 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
     
 
     // Simplified regex for a single solicitud block
-    let solicitud_regex1 = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s*\d*\s*(\d{2}/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*motivos\s*(.*)")
+    let solicitud_regex1 = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d*\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*motivos\s*(.*)")
     .map_err(|e| format!("Error compiling regex: {}", e))?;
-    let solicitud_regex2 = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s*\d*\s*(\d{2}/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*")
+    let solicitud_regex2 = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d*\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*")
     .map_err(|e| format!("Error compiling regex: {}", e))?;
 
     let mut cancelaciones_extemporanea_asignaturas: Vec<Solicitud> = Vec::new();
@@ -104,7 +104,9 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .map_or("", |m| m.as_str())
                 .trim()
                 .to_string();
-            let fecha_de_solicitud = captures.get(5).map_or("", |m| m.as_str()).trim().to_string();
+            let fecha_de_solicitud = captures.get(5).map_or("", |m| m.as_str()).trim().split_whitespace()
+            .collect::<Vec<&str>>()
+            .join("");
             let motivos = captures
                 .get(6)
                 .map_or("", |m| m.as_str())

@@ -1,11 +1,11 @@
 [package]
 name = "pdf-rep-sia"
-version = "0.2.7"
+version = "0.2.8"
 edition = "2021"
 repository = "https://github.com/jovillarrealm/pdf_data_extractor.git"
 authors = ["jovillarrealm"]
 manufacturer = "La Nacho? pero no me pagan entonces en realidad no son ellos bu"
-description = "Esto coge los reportes Aenda del SIA y los pasa a un xlsx"
+description = "Esto coge los reportes Agenda del SIA y los pasa a un xlsx"
 
 [package.metadata.wix]
 upgrade-guid = "1D5E6CCB-7223-42C8-9419-B5F47AA39C9E"
