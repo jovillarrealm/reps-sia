@@ -2673,7 +2673,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-rep-sia"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "clap",
  "eframe",
