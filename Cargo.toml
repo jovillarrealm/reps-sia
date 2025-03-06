@@ -1,6 +1,6 @@
 [package]
-name = "pdf_data_extractor"
-version = "0.2.2"
+name = "pdf-rep-sia"
+version = "0.2.3"
 edition = "2021"
 repository = "https://github.com/jovillarrealm/pdf_data_extractor.git"
 authors = ["jovillarrealm"]

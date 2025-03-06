@@ -2672,8 +2672,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdf_data_extractor"
-version = "0.2.2"
+name = "pdf-rep-sia"
+version = "0.2.3"
 dependencies = [
  "clap",
  "eframe",
