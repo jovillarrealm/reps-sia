@@ -62,7 +62,7 @@
         Id='*'
         Name='pdf-rep-sia'
         UpgradeCode='1D5E6CCB-7223-42C8-9419-B5F47AA39C9E'
-        Manufacturer='jovillarrealm'
+        Manufacturer='Jorge A. Villarreal Márquez'
         Language='1033'
         Codepage='1252'
         Version='$(var.Version)'>
@@ -70,7 +70,7 @@
         <Package Id='*'
             Keywords='Installer'
             Description='Esto coge los reportes Agenda del SIA y los pasa a un xlsx'
-            Manufacturer='jovillarrealm'
+            Manufacturer='Jorge A. Villarreal Márquez'
             InstallerVersion='450'
             Languages='1033'
             Compressed='yes'

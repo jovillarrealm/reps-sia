@@ -3,8 +3,8 @@ name = "pdf-rep-sia"
 version = "0.2.9"
 edition = "2021"
 repository = "https://github.com/jovillarrealm/pdf_data_extractor.git"
-authors = ["jovillarrealm"]
-manufacturer = "La Nacho? pero no me pagan entonces en realidad no son ellos bu"
+authors = ["Jorge A. Villarreal Márquez <javillarrm@eafit.edu.co>"]
+manufacturer = "muh will to live"
 description = "Esto coge los reportes Agenda del SIA y los pasa a un xlsx"
 
 [package.metadata.wix]
