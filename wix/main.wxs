@@ -69,7 +69,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='Esto coge los reportes Aenda del SIA y los pasa a un xlsx'
+            Description='Esto coge los reportes Agenda del SIA y los pasa a un xlsx'
             Manufacturer='jovillarrealm'
             InstallerVersion='450'
             Languages='1033'
