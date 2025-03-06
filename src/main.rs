@@ -50,8 +50,11 @@ impl Solicitud {
 }
 
 fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solicitud>>, String> {
+    let pdf_contents = Regex::new(r"ID\s*|\s*ESPACIO PARA ANOTACIONES").unwrap()
+        .replace_all(pdf_contents, "");
+
     let id_sections_re = Regex::new(r"ID\s*\|\s*[A-Z]+\s*ID\s*\|\s*[A-Z\s]+").unwrap();
-    let sections: Vec<&str> = id_sections_re.split(pdf_contents).collect();
+    let sections: Vec<&str> = id_sections_re.split(&pdf_contents).collect();
 
     // Split the text into chunks, each starting with "SOLICITUD ESTUDIANTE"
     let solicitud_seccion_re = Regex::new(r"\d+\.\s*\|\s*SOLICITUD ESTUDIANTE\s*").unwrap();
@@ -64,17 +67,20 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
     
 
     // Simplified regex for a single solicitud block
-    let solicitud_regex = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s*\d*\s*(\d{1,2}/\d{1,2}/\d{4}|\d{1,2}/\d{1,2}/\d{2})\s*motivos\s*(.*)")
+    let solicitud_regex1 = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s*\d*\s*(\d{1,2}/\d{1,2}/\d{4}|\d{1,2}/\d{1,2}/\d{2})\s*motivos\s*(.*)")
     .map_err(|e| format!("Error compiling regex: {}", e))?;
-    let solicitud_regex2 = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s*\d*\s*(\d{1,2}/\d{1,2}/\d{4}|\d{1,2}/\d{1,2}/\d{2})\s*")
+    let solicitud_regex2 = Regex::new(r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s*\d*\s*(\d{1,2}/\d{1,2}/\d{4}|\d{1,2}/\d{1,2}/\d{2})\s*")
     .map_err(|e| format!("Error compiling regex: {}", e))?;
 
     let mut cancelaciones_extemporanea_asignaturas: Vec<Solicitud> = Vec::new();
     let mut cancelaciones_semestre: Vec<Solicitud> = Vec::new();
     let mut registro_trabajo_grado: Vec<Solicitud> = Vec::new();
+    let mut autorizacion_menor_carga_minima: Vec<Solicitud> = Vec::new();
+    let mut cancelacion_extemporanea_asignaturas_posgrado: Vec<Solicitud> = Vec::new();
+
 
     for chunk in chunks.iter() {
-        if let Some(captures) = solicitud_regex.captures(chunk) {
+        if let Some(captures) = solicitud_regex1.captures(chunk) {
             let nombre_del_estudiante = captures
                 .get(1)
                 .map_or("", |m| m.as_str())
@@ -84,6 +90,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .get(2)
                 .map_or("", |m| m.as_str())
                 .trim()
+                .replace(" ", "")
                 .to_string();
             let plan_de_estudios = captures
                 .get(3)
@@ -102,8 +109,16 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .trim()
                 .to_string();
 
-
-            if numero_solicitud.starts_with("CEA") {
+            if numero_solicitud.starts_with("CEAP") {
+                    cancelacion_extemporanea_asignaturas_posgrado.push(Solicitud {
+                        nombre_del_estudiante,
+                        plan_de_estudios,
+                        numero_solicitud,
+                        fecha_de_solicitud,
+                        identificacion,
+                        motivos,
+                    })
+            } else if numero_solicitud.starts_with("CEA") {
                 cancelaciones_extemporanea_asignaturas.push(Solicitud {
                     nombre_del_estudiante,
                     plan_de_estudios,
@@ -121,9 +136,15 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     identificacion,
                     motivos,
                 })
-            } else if numero_solicitud.starts_with("CT") {
-                println!("Eh? ");
-                println!("{}", chunk)
+            } else if numero_solicitud.starts_with("ACM") {
+                autorizacion_menor_carga_minima.push(Solicitud {
+                    nombre_del_estudiante,
+                    plan_de_estudios,
+                    numero_solicitud,
+                    fecha_de_solicitud,
+                    identificacion,
+                    motivos,
+                });
             } else {
                 println!("Eh? QUE ES ESTO?????");
                 println!("{}", chunk)
@@ -170,15 +191,36 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
     }
 
     let mut solicitudes: HashMap<String, Vec<Solicitud>> = HashMap::new();
-    solicitudes.insert(
-        "CANC ASIGNATURAS".to_string(),
-        cancelaciones_extemporanea_asignaturas,
-    );
-    solicitudes.insert("CANC SEMESTRE".to_string(), cancelaciones_semestre);
-    solicitudes.insert(
-        "REGISTRO TRABAJO DE GRADO".to_string(),
-        registro_trabajo_grado,
-    );
+
+    if ! cancelacion_extemporanea_asignaturas_posgrado.is_empty() {
+        //solicitudes.insert(
+        //    "CANCELACIÓN EXTEMP. ASIGN. POS".to_string(),
+        //    cancelacion_extemporanea_asignaturas_posgrado,
+        //);
+        cancelaciones_extemporanea_asignaturas.extend(cancelacion_extemporanea_asignaturas_posgrado);
+    }
+    if ! cancelaciones_extemporanea_asignaturas.is_empty(){
+        solicitudes.insert(
+            "CANCELACIÓN EXTEMP. ASIGNATURAS".to_string(),
+            cancelaciones_extemporanea_asignaturas,
+        );
+    }
+
+
+    if ! cancelaciones_semestre.is_empty() {
+        solicitudes.insert("CANCELACIÓN SEMESTRE".to_string(), cancelaciones_semestre);
+    }
+    if ! registro_trabajo_grado.is_empty(){
+
+        solicitudes.insert(
+            "REGISTRO TRABAJO GRADO".to_string(),
+            registro_trabajo_grado,
+        );
+    }
+
+    if ! autorizacion_menor_carga_minima.is_empty() {
+        solicitudes.insert("AUTORIZACIÓN CARGA MÍNIMA".to_string(), autorizacion_menor_carga_minima);
+    }
 
     Ok(solicitudes)
 }
@@ -320,8 +362,9 @@ impl eframe::App for PdfProcessorApp {
 
 
 fn main() -> Result<(), eframe::Error> {
+    let icon= load_icon().unwrap();
     let mut options = eframe::NativeOptions::default();
-    options.viewport = egui::ViewportBuilder::default().with_icon(load_icon().unwrap()); // add icon
+    options.viewport = egui::ViewportBuilder::default().with_icon(icon); // add icon
 
     eframe::run_native(
         "Procesador de PDF de Reporte de Agenda a Excel",
