@@ -1,6 +1,6 @@
 [package]
 name = "pdf-rep-sia"
-version = "0.2.8"
+version = "0.2.9"
 edition = "2021"
 repository = "https://github.com/jovillarrealm/pdf_data_extractor.git"
 authors = ["jovillarrealm"]
@@ -21,6 +21,7 @@ regex = "1.11.1"
 rfd = "0.15.2"
 eframe = "0.31.1"
 image = "0.25.5"
+chrono = "0.4.40"
 
 # The profile that 'dist' will build with
 [profile.dist]
