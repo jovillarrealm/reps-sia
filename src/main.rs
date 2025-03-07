@@ -99,7 +99,7 @@ const RS_RE_CS_ACM: &str = concat!(
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:periodo para el que solicita cancelación de semestre\s*(.*))",
 );
-//(?:[documento anexo  Documento\s*]*)
+//(?:documento anexo  Documento\s*)*
 const ANOTACIONES: &str = "ANOTACIONES";
 const CEA: &str = "CANCELACIÓN EXTEMP. ASIGNATURAS";
 const ACM: &str = "AUTORIZACIÓN CARGA MÍNIMA";
