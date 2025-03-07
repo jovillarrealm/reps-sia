@@ -6,12 +6,14 @@ repository = "https://github.com/jovillarrealm/pdf_data_extractor.git"
 authors = ["Jorge A. Villarreal Márquez <javillarrm@eafit.edu.co>"]
 manufacturer = "muh will to live"
 description = "Esto coge los reportes Agenda del SIA y los pasa a un xlsx"
+license = "Apache-2.0"
+
 
 [package.metadata.wix]
 upgrade-guid = "1D5E6CCB-7223-42C8-9419-B5F47AA39C9E"
 path-guid = "CBA1CBC8-526E-4071-9EB6-35ED75283AC3"
-license = false
-eula = false
+license = true
+eula = true
 
 [dependencies]
 rust_xlsxwriter = "0.84.0"
