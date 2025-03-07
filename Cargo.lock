@@ -2721,20 +2721,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdf-rep-sia"
-version = "0.2.9"
-dependencies = [
- "chrono",
- "clap",
- "eframe",
- "image",
- "pdf-extract",
- "regex",
- "rfd",
- "rust_xlsxwriter",
-]
-
-[[package]]
 name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3094,6 +3080,20 @@ name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
+
+[[package]]
+name = "reps-sia"
+version = "0.2.9"
+dependencies = [
+ "chrono",
+ "clap",
+ "eframe",
+ "image",
+ "pdf-extract",
+ "regex",
+ "rfd",
+ "rust_xlsxwriter",
+]
 
 [[package]]
 name = "rfd"
