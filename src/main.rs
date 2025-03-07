@@ -1,14 +1,15 @@
+use chrono::{NaiveDate, ParseError};
 use clap::Parser;
-use regex::Regex;
-use rust_xlsxwriter::{Format, Workbook, XlsxError};
-use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
 use eframe::egui;
-use rfd::FileDialog;
 use eframe::egui::IconData;
 use image::ImageReader;
+use once_cell::sync::Lazy;
+use regex::Regex;
+use rfd::FileDialog;
+use rust_xlsxwriter::{Format, Workbook, XlsxError};
+use std::collections::{HashMap, VecDeque};
 use std::io::Cursor;
-use chrono::{NaiveDate, ParseError};
+use std::path::PathBuf;
 
 #[derive(Debug, Default)]
 struct Solicitud {
@@ -18,6 +19,8 @@ struct Solicitud {
     fecha_de_solicitud: NaiveDate,
     identificacion: usize,
     motivos: Option<String>,
+    anexos: Option<String>,
+    materias: Option<String>
 }
 
 struct SolicitudIterator<'a> {
@@ -34,9 +37,25 @@ impl Iterator for SolicitudIterator<'_> {
             1 => Some(self.solicitud.nombre_del_estudiante.clone()),
             2 => Some(self.solicitud.plan_de_estudios.clone()),
             3 => Some(self.solicitud.numero_solicitud.clone()),
-            4 => Some(self.solicitud.fecha_de_solicitud.format("%d/%m/%Y").to_string()),
+            4 => Some(
+                self.solicitud
+                    .fecha_de_solicitud
+                    .format("%d/%m/%Y")
+                    .to_string(),
+            ),
             5 => Some(self.solicitud.identificacion.to_string()),
-            6 => self.solicitud.motivos.clone(),
+            6 => match &self.solicitud.motivos {
+                Some(motivos) => Some(motivos.to_string()),
+                None => self.next(),
+            },
+            7 => match &self.solicitud.anexos {
+                Some(anexos) => Some(anexos.to_string()),
+                None => self.next(),
+            },
+            8 => match &self.solicitud.materias {
+                Some(materias) => Some(materias.to_string()),
+                None => self.next(),
+            },
             _ => None,
         }
     }
@@ -53,43 +72,63 @@ impl Solicitud {
 
 fn parse_date(date_str: &str) -> Result<NaiveDate, ParseError> {
     // Attempt to parse with both formats
-    NaiveDate::parse_from_str(date_str, "%d/%m/%Y").or_else(|_| NaiveDate::parse_from_str(date_str, "%d/%m/%y"))
+    NaiveDate::parse_from_str(date_str, "%d/%m/%Y")
+        .or_else(|_| NaiveDate::parse_from_str(date_str, "%d/%m/%y"))
 }
 
+const ANOTACIONES_SEP: &str = "ID |ESPACIO PARA ANOTACIONES";
+const _HALF_SECTION_STR_SEP: &str = r"ID\s+\|[A-ZÁÉÍÓÚÜ\s]+";
+const SOLICITUD_ESTUDIANTE_SEP: &str = r"\d+\.\s*\|\s*SOLICITUD ESTUDIANTE\s*";
+const SECTION_STR: &str = concat!(r"ID\s+\|[A-ZÁÉÍÓÚÜ\s]+", "\n\n", r"ID\s+\|[A-ZÁÉÍÓÚÜ\s]+");
+static ID_SECTIONS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(&SECTION_STR).unwrap());
+static SOLICITUD_SECCION_RE: Lazy<Regex> = Lazy::new(|| Regex::new(SOLICITUD_ESTUDIANTE_SEP).unwrap());
+const RS_RE: &str = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*";
+const RS_RE_MOTIVOS: &str = concat!(
+    r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
+    r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
+    r"(?:materias relacionadas a la solicitud\s*asignatura grp nombre(.*))",
+);
+const CEA: &str = "CANCELACIÓN EXTEMP. ASIGNATURAS";
+const ANOTACIONES: &str = "ANOTACIONES";
+const ACM: &str = "AUTORIZACIÓN CARGA MÍNIMA";
+const RTG: &str = "REGISTRO TRABAJO GRADO";
+const CS : &str = "CANCELACIÓN SEMESTRE" ;
 
+
+static SOLICITUD_REGEX1: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(&RS_RE_MOTIVOS).map_err(|e| format!("Error compiling regex: {}", e)).unwrap()
+});
+
+static SOLICITUD_REGEX2: Lazy<Regex> =
+    Lazy::new(|| Regex::new(RS_RE).map_err(|e| format!("Error compiling regex: {}", e)).unwrap());
 
 fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solicitud>>, String> {
-    let anotaciones = "ID |ESPACIO PARA ANOTACIONES";
-    let pdf_contents:Vec<&str> = pdf_contents.split(anotaciones).collect();
+    // Split anotaciones from the rest of sections
+
+    let pdf_contents: Vec<&str> = pdf_contents.split(ANOTACIONES_SEP).collect();
     let anotaciones = pdf_contents[1];
     let pdf_contents = pdf_contents[0];
-    let half_section_str = r"ID\s+\|[A-ZÁÉÍÓÚÜ\s]+";
-    let section_str = format!("{}\n\n{}", half_section_str, half_section_str);
 
-    let id_sections_re = Regex::new(&section_str).unwrap();
-    let sections: Vec<&str> = id_sections_re.split(pdf_contents).collect();
+    // Separate pdf by ID | sections
+    let sections: Vec<&str> = ID_SECTIONS_RE.split(pdf_contents).collect();
 
-    // Split the text into chunks, each starting with "SOLICITUD ESTUDIANTE"
-    let solicitud_seccion_re = Regex::new(r"\d+\.\s*\|\s*SOLICITUD ESTUDIANTE\s*").unwrap();
+    // Split each section into chunks, each starting with "SOLICITUD ESTUDIANTE"
     let mut chunks: VecDeque<&str> = VecDeque::new();
     for section in sections {
-        let m: Vec<&str> = solicitud_seccion_re.split(section).collect();
+        let m: Vec<&str> = SOLICITUD_SECCION_RE.split(section).collect();
         chunks.extend(m);
     }
-    //chunks.pop_front();
+    // First chunk just has information about this pdf, we are ignoring that
     chunks.pop_front();
-    let chunks = chunks.into_iter().filter(|s| !s.is_empty()).collect::<Vec<&str>>();
-    
+    // We now have each
+    // Clean that shit.
+    let chunks = chunks
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<&str>>();
 
     // Simplified regex for a single solicitud block
-    let rs_re = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d*\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*";
-    let rs_re_motivos = format!("{}{}", rs_re, r"motivos\s*(.*)");
-
-    let solicitud_regex1 = Regex::new(&rs_re_motivos)
-    .map_err(|e| format!("Error compiling regex: {}", e))?;
-
-    let solicitud_regex2 = Regex::new(rs_re)
-    .map_err(|e| format!("Error compiling regex: {}", e))?;
+    let _rs_re = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*";
 
     let mut cancelaciones_extemporanea_asignaturas: Vec<Solicitud> = Vec::new();
     let mut cancelaciones_semestre: Vec<Solicitud> = Vec::new();
@@ -97,9 +136,8 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
     let mut autorizacion_menor_carga_minima: Vec<Solicitud> = Vec::new();
     let mut cancelacion_extemporanea_asignaturas_posgrado: Vec<Solicitud> = Vec::new();
 
-
     for chunk in chunks.iter() {
-        if let Some(captures) = solicitud_regex1.captures(chunk) {
+        if let Some(captures) = SOLICITUD_REGEX1.captures(chunk) {
             let nombre_del_estudiante = captures
                 .get(1)
                 .map_or("", |m| m.as_str())
@@ -111,43 +149,80 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .split_whitespace()
                 .collect::<Vec<&str>>()
                 .join("")
-                .parse().expect("Error parsing identificacion");
-            let plan_de_estudios = captures
-                .get(3)
-                .map_or("", |m| m.as_str())
-                .trim()
-                .into();
+                .parse()
+                .expect("Error parsing identificacion");
+            let plan_de_estudios = captures.get(3).map_or("", |m| m.as_str()).trim().into();
             let numero_solicitud = captures
                 .get(4)
                 .map_or("", |m| m.as_str())
                 .trim()
                 .to_string();
-            let fecha_de_solicitud_str = captures.get(5).map_or("", |m| m.as_str()).trim().split_whitespace()
-            .collect::<Vec<&str>>()
-            .join("");
-            let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
-                Ok(date) => date,
-            Err(e) => {
-                eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
-                return Err(format!("Error parsing date '{}': {}", fecha_de_solicitud_str, e))
-            }
-            };
-            let motivos = Some(captures
-                .get(6)
+            let fecha_de_solicitud_str = captures
+                .get(5)
                 .map_or("", |m| m.as_str())
                 .trim()
-                .to_string());
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("");
+            let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
+                Ok(date) => date,
+                Err(e) => {
+                    eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
+                    return Err(format!(
+                        "Error parsing date '{}': {}",
+                        fecha_de_solicitud_str, e
+                    ));
+                }
+            };
+
+            let mut motivos = None;
+            let mut anexos = None;
+            let mut periodo: Option<String> = None;
+            let mut materias = None;
 
             if numero_solicitud.starts_with("CEAP") {
-                    cancelacion_extemporanea_asignaturas_posgrado.push(Solicitud {
-                        nombre_del_estudiante,
-                        plan_de_estudios,
-                        numero_solicitud,
-                        fecha_de_solicitud,
-                        identificacion,
-                        motivos,
-                    })
+                motivos = Some(
+                    captures
+                        .get(6)
+                        .map_or("", |m| m.as_str())
+                        .trim()
+                        .to_string(),
+                );
+                // solicitud empieza con CEA so far
+                anexos = Some(
+                    captures
+                        .get(7)
+                        .map_or("", |m| m.as_str())
+                        .trim()
+                        .to_string(),
+                );
+                println!("anexos: {}", anexos.as_ref().unwrap());
+                materias = Some(
+                    captures
+                        .get(8)
+                        .map_or("", |m| m.as_str())
+                        .trim()
+                        .to_string(),
+                );
+                println!("materias :{}", materias.as_ref().unwrap());
+                cancelacion_extemporanea_asignaturas_posgrado.push(Solicitud {
+                    nombre_del_estudiante,
+                    plan_de_estudios,
+                    numero_solicitud,
+                    fecha_de_solicitud,
+                    identificacion,
+                    motivos,
+                    anexos,
+                    materias,
+                })
             } else if numero_solicitud.starts_with("CEA") {
+                let motivos = Some(
+                    captures
+                        .get(6)
+                        .map_or("", |m| m.as_str())
+                        .trim()
+                        .to_string(),
+                );
                 cancelaciones_extemporanea_asignaturas.push(Solicitud {
                     nombre_del_estudiante,
                     plan_de_estudios,
@@ -155,8 +230,17 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     fecha_de_solicitud,
                     identificacion,
                     motivos,
+                    anexos,
+                    materias,
                 })
             } else if numero_solicitud.starts_with("CS") {
+                let motivos = Some(
+                    captures
+                        .get(6)
+                        .map_or("", |m| m.as_str())
+                        .trim()
+                        .to_string(),
+                );
                 cancelaciones_semestre.push(Solicitud {
                     nombre_del_estudiante,
                     plan_de_estudios,
@@ -164,8 +248,17 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     fecha_de_solicitud,
                     identificacion,
                     motivos,
+                    anexos,
+                    materias,
                 })
             } else if numero_solicitud.starts_with("ACM") {
+                let motivos = Some(
+                    captures
+                        .get(6)
+                        .map_or("", |m| m.as_str())
+                        .trim()
+                        .to_string(),
+                );
                 autorizacion_menor_carga_minima.push(Solicitud {
                     nombre_del_estudiante,
                     plan_de_estudios,
@@ -173,12 +266,25 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     fecha_de_solicitud,
                     identificacion,
                     motivos,
+                    anexos,
+                    materias,
+                });
+            } else if numero_solicitud.starts_with("RTG") {
+                autorizacion_menor_carga_minima.push(Solicitud {
+                    nombre_del_estudiante,
+                    plan_de_estudios,
+                    numero_solicitud,
+                    fecha_de_solicitud,
+                    identificacion,
+                    motivos,
+                    anexos,
+                    materias,
                 });
             } else {
                 println!("Eh? QUE ES ESTO?????");
                 println!("{}", chunk)
             }
-        } else if let Some(captures) = solicitud_regex2.captures(chunk) {
+        } else if let Some(captures) = SOLICITUD_REGEX2.captures(chunk) {
             let nombre_del_estudiante = captures
                 .get(1)
                 .map_or("", |m| m.as_str())
@@ -190,7 +296,8 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .split_whitespace()
                 .collect::<Vec<&str>>()
                 .join("")
-                .parse().expect("Error parsing identificacion");
+                .parse()
+                .expect("Error parsing identificacion");
             let plan_de_estudios = captures
                 .get(3)
                 .map_or("", |m| m.as_str())
@@ -201,17 +308,26 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 .map_or("", |m| m.as_str())
                 .trim()
                 .to_string();
-            let fecha_de_solicitud_str = captures.get(5).map_or("", |m| m.as_str()).trim().split_whitespace()
-            .collect::<Vec<&str>>()
-            .join("");
+            let fecha_de_solicitud_str = captures
+                .get(5)
+                .map_or("", |m| m.as_str())
+                .trim()
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("");
             let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
                 Ok(date) => date,
-            Err(e) => {
-                eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
-                return Err(format!("Error parsing date '{}': {}", fecha_de_solicitud_str, e))
-            }
+                Err(e) => {
+                    eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
+                    return Err(format!(
+                        "Error parsing date '{}': {}",
+                        fecha_de_solicitud_str, e
+                    ));
+                }
             };
             let motivos = None;
+            let materias = None;
+            let anexos = None;
 
             if numero_solicitud.starts_with("RTG") {
                 registro_trabajo_grado.push(Solicitud {
@@ -221,6 +337,8 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     fecha_de_solicitud,
                     identificacion,
                     motivos,
+                    anexos,
+                    materias,
                 });
             }
         } else {
@@ -231,43 +349,43 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
 
     let mut solicitudes: HashMap<String, Vec<Solicitud>> = HashMap::new();
 
-    if ! cancelacion_extemporanea_asignaturas_posgrado.is_empty() {
+    if !cancelacion_extemporanea_asignaturas_posgrado.is_empty() {
         //solicitudes.insert(
         //    "CANCELACIÓN EXTEMP. ASIGN. POS".to_string(),
         //    cancelacion_extemporanea_asignaturas_posgrado,
         //);
-        cancelaciones_extemporanea_asignaturas.extend(cancelacion_extemporanea_asignaturas_posgrado);
+        cancelaciones_extemporanea_asignaturas
+            .extend(cancelacion_extemporanea_asignaturas_posgrado);
     }
-    if ! cancelaciones_extemporanea_asignaturas.is_empty(){
+    if !cancelaciones_extemporanea_asignaturas.is_empty() {
         solicitudes.insert(
-            "CANCELACIÓN EXTEMP. ASIGNATURAS".to_string(),
+            CEA.to_string(),
             cancelaciones_extemporanea_asignaturas,
         );
     }
 
-
-    if ! cancelaciones_semestre.is_empty() {
-        solicitudes.insert("CANCELACIÓN SEMESTRE".to_string(), cancelaciones_semestre);
+    if !cancelaciones_semestre.is_empty() {
+        solicitudes.insert(CS.to_string(), cancelaciones_semestre);
     }
-    if ! registro_trabajo_grado.is_empty(){
+    if !registro_trabajo_grado.is_empty() {
+        solicitudes.insert(RTG.to_string(), registro_trabajo_grado);
+    }
 
+    if !autorizacion_menor_carga_minima.is_empty() {
         solicitudes.insert(
-            "REGISTRO TRABAJO GRADO".to_string(),
-            registro_trabajo_grado,
+            ACM.to_string(),
+            autorizacion_menor_carga_minima,
         );
     }
-
-    if ! autorizacion_menor_carga_minima.is_empty() {
-        solicitudes.insert("AUTORIZACIÓN CARGA MÍNIMA".to_string(), autorizacion_menor_carga_minima);
-    }
-    if ! anotaciones.is_empty() {
+    if !anotaciones.is_empty() {
         let mut bs = Solicitud::default();
-        bs.motivos= Some(anotaciones.to_string());
-        solicitudes.insert("ANOTACIONES".to_string(), vec![bs]);
+        bs.motivos = Some(anotaciones.to_string());
+        solicitudes.insert(ANOTACIONES.to_string(), vec![bs]);
     }
 
     Ok(solicitudes)
 }
+
 
 fn write_data_to_excel(
     data: &HashMap<String, Vec<Solicitud>>,
@@ -304,23 +422,28 @@ fn write_data_to_excel(
     Ok(())
 }
 
-fn process_pdf(
-    pdf_path: PathBuf,
-) -> Result<HashMap<String, Vec<Solicitud>>, String> {
+fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, String> {
     // Generate output paths
     let file_stem = pdf_path.file_stem().unwrap().to_string_lossy().to_string();
-    let excel_path = pdf_path.parent().unwrap().join(format!("{}.xlsx", file_stem));
-    let excel_name = excel_path.file_name().unwrap().to_string_lossy().to_string();
+    let excel_path = pdf_path
+        .parent()
+        .unwrap()
+        .join(format!("{}.xlsx", file_stem));
+    let excel_name = excel_path
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
 
     if let Some(output_path) = FileDialog::new().set_file_name(excel_name).save_file() {
         // Your existing processing logic should be integrated here
         let bytes = std::fs::read(pdf_path).expect("Error reading PDF file crate");
-        let out =
-            pdf_extract::extract_text_from_mem(&bytes).expect("Error extracting text from PDF crate");
-    
+        let out = pdf_extract::extract_text_from_mem(&bytes)
+            .expect("Error extracting text from PDF crate");
+
         // Extract data from text
         let data = read_and_extract_data(&out)?;
-    
+
         // Write data to Excel
         write_data_to_excel(&data, &output_path)
             .map_err(|e| format!("Failed to write Excel file: {}", e))?;
@@ -328,7 +451,6 @@ fn process_pdf(
     } else {
         Err("No output file selected".to_string())
     }
-
 }
 
 fn load_icon() -> Option<IconData> {
@@ -361,7 +483,6 @@ struct Cli {
     output_dir: PathBuf,
 }
 
-
 struct PdfProcessorApp {
     pdf_path: Option<PathBuf>,
     status: String,
@@ -379,17 +500,17 @@ impl eframe::App for PdfProcessorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Procesador de Reportes de Agenda del SIA");
-            
+
             if ui.button("Seleccione PDF").clicked() {
                 if let Some(path) = FileDialog::new().add_filter("PDF", &["pdf"]).pick_file() {
                     self.pdf_path = Some(path);
                 }
             }
-            
+
             if let Some(path) = &self.pdf_path {
                 ui.label(format!("PDF Seleccionado: {}", path.display()));
             }
-            
+
             if ui.button("Procesar PDF").clicked() {
                 if let Some(path) = &self.pdf_path {
                     match process_pdf(path.clone()) {
@@ -398,15 +519,14 @@ impl eframe::App for PdfProcessorApp {
                     }
                 }
             }
-            
+
             ui.label(&self.status);
         });
     }
 }
 
-
 fn main() -> Result<(), eframe::Error> {
-    let icon= load_icon().unwrap();
+    let icon = load_icon().unwrap();
     let mut options = eframe::NativeOptions::default();
     options.viewport = egui::ViewportBuilder::default().with_icon(icon); // add icon
 
@@ -416,5 +536,4 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|_cc| Ok(Box::new(PdfProcessorApp::default()))),
     )?;
     Ok(())
-
 }

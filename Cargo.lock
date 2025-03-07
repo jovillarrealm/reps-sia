@@ -3089,6 +3089,7 @@ dependencies = [
  "clap",
  "eframe",
  "image",
+ "once_cell",
  "pdf-extract",
  "regex",
  "rfd",
