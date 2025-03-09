@@ -19,7 +19,7 @@ struct Solicitud {
     fecha_de_solicitud: NaiveDate,
     identificacion: usize,
     motivos: Option<String>,
-    anexos: Option<String>,
+    adjuntos: Option<usize>,
     materias: Option<String>,
     periodo: Option<String>,
 }
@@ -45,7 +45,7 @@ impl Iterator for SolicitudIterator<'_> {
                     .to_string(),
             ),
             5 => Some(self.solicitud.identificacion.to_string()),
-            6 => match &self.solicitud.anexos {
+            6 => match &self.solicitud.adjuntos {
                 Some(anexos) => Some(anexos.to_string()),
                 None => self.next(),
             },
@@ -94,11 +94,17 @@ const RS_RE_CEA: &str = concat!(
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:materias relacionadas a la solicitud\s*asignatura grp nombre(.*))",
 );
-const RS_RE_CS_ACM: &str = concat!(
+const RS_RE_CS: &str = concat!(
     r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:periodo para el que solicita cancelación de semestre\s*(.*))",
 );
+const RS_RE_ACM: &str = concat!(
+    r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
+    r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
+    r"(?:periodo para el que solicita carga mínima\s*(.*))",
+);
+const DOC_ANEX_DOC: &str = r"(documento anexo  Documento\s*)+";
 //(?:documento anexo  Documento\s*)*
 const ANOTACIONES: &str = "ANOTACIONES";
 const CEA: &str = "CANCELACIÓN EXTEMP. ASIGNATURAS";
@@ -111,14 +117,25 @@ static SOLICITUD_CEA: Lazy<Regex> = Lazy::new(|| {
         .map_err(|e| format!("Error compiling regex: {}", e))
         .unwrap()
 });
-static SOLICITUD_CS_ACM: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(RS_RE_CS_ACM)
+static SOLICITUD_CS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(RS_RE_CS)
+        .map_err(|e| format!("Error compiling regex: {}", e))
+        .unwrap()
+});
+static SOLICITUD_ACM: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(RS_RE_ACM)
         .map_err(|e| format!("Error compiling regex: {}", e))
         .unwrap()
 });
 
 static SOLICITUD_RTG: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_RTG)
+        .map_err(|e| format!("Error compiling regex: {}", e))
+        .unwrap()
+});
+
+static DOC_ANEX_DOC_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(DOC_ANEX_DOC)
         .map_err(|e| format!("Error compiling regex: {}", e))
         .unwrap()
 });
@@ -205,20 +222,17 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     .to_string(),
             );
             // solicitud empieza con CEA so far
-            let anexos = Some(
+            let _anexos = Some(
                 captures
                     .get(7)
                     .map_or("", |m| m.as_str())
                     .trim()
                     .to_string(),
             );
-            let materias = Some(
-                captures
-                    .get(8)
-                    .map_or("", |m| m.as_str())
-                    .trim()
-                    .to_string(),
-            );
+            let last_field_capture = captures.get(8).map_or("", |m| m.as_str()).trim();
+            let adjuntos = Some(DOC_ANEX_DOC_RE.find_iter(last_field_capture).count());
+            let second = DOC_ANEX_DOC_RE.replace(last_field_capture, "");
+            let materias = Some(second.to_string());
             let solicitud = Solicitud {
                 nombre_del_estudiante,
                 plan_de_estudios,
@@ -226,7 +240,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 fecha_de_solicitud,
                 identificacion,
                 motivos,
-                anexos,
+                adjuntos,
                 materias,
                 periodo,
             };
@@ -238,7 +252,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 println!("Warning: Eh? QUE ES ESTO?????");
                 println!("{}", chunk)
             }
-        } else if let Some(captures) = SOLICITUD_CS_ACM.captures(chunk) {
+        } else if let Some(captures) = SOLICITUD_CS.captures(chunk) {
             let nombre_del_estudiante = captures
                 .get(1)
                 .map_or("", |m| m.as_str())
@@ -275,7 +289,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     ));
                 }
             };
-            
+
             let motivos = Some(
                 captures
                     .get(6)
@@ -283,7 +297,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     .trim()
                     .to_string(),
             );
-            let anexos = Some(
+            let _anexos = Some(
                 captures
                     .get(7)
                     .map_or("", |m| m.as_str())
@@ -291,13 +305,10 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                     .to_string(),
             );
             let materias = None;
-            let periodo = Some(
-                captures
-                    .get(8)
-                    .map_or("", |m| m.as_str())
-                    .trim()
-                    .to_string(),
-            );
+            let last_field_capture = captures.get(8).map_or("", |m| m.as_str()).trim();
+            let adjuntos = Some(DOC_ANEX_DOC_RE.find_iter(last_field_capture).count());
+            let second = DOC_ANEX_DOC_RE.replace(last_field_capture, "");
+            let periodo = Some(second.to_string());
 
             let solicitud = Solicitud {
                 nombre_del_estudiante,
@@ -306,14 +317,92 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 fecha_de_solicitud,
                 identificacion,
                 motivos,
-                anexos,
+                adjuntos,
                 materias,
                 periodo,
             };
             if n_sol.starts_with("CS") {
                 cancelaciones_semestre.push(solicitud);
-            } else if n_sol.starts_with("ACM") {
+            } else if n_sol.starts_with("ACM")  {
                 autorizacion_menor_carga_minima.push(solicitud);
+                
+            } else {
+                dbg!(captures.get(0));
+            }
+        } else if let Some(captures) = SOLICITUD_ACM.captures(chunk) {
+            let nombre_del_estudiante = captures
+                .get(1)
+                .map_or("", |m| m.as_str())
+                .trim()
+                .to_string();
+            let identificacion = captures
+                .get(2)
+                .map_or("", |m| m.as_str())
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("")
+                .parse()
+                .expect("Error parsing identificacion");
+            let plan_de_estudios = captures.get(3).map_or("", |m| m.as_str()).trim().into();
+            let numero_solicitud = captures
+                .get(4)
+                .map_or("", |m| m.as_str())
+                .trim()
+                .to_string();
+            let n_sol = numero_solicitud.clone();
+            let fecha_de_solicitud_str = captures
+                .get(5)
+                .map_or("", |m| m.as_str())
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("");
+            let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
+                Ok(date) => date,
+                Err(e) => {
+                    eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
+                    return Err(format!(
+                        "Error parsing date '{}': {}",
+                        fecha_de_solicitud_str, e
+                    ));
+                }
+            };
+
+            let motivos = Some(
+                captures
+                    .get(6)
+                    .map_or("", |m| m.as_str())
+                    .trim()
+                    .to_string(),
+            );
+            let _anexos = Some(
+                captures
+                    .get(7)
+                    .map_or("", |m| m.as_str())
+                    .trim()
+                    .to_string(),
+            );
+            let materias = None;
+            let last_field_capture = captures.get(8).map_or("", |m| m.as_str()).trim();
+            let adjuntos = Some(DOC_ANEX_DOC_RE.find_iter(last_field_capture).count());
+            let second = DOC_ANEX_DOC_RE.replace(last_field_capture, "");
+            let periodo = Some(second.to_string());
+
+            let solicitud = Solicitud {
+                nombre_del_estudiante,
+                plan_de_estudios,
+                numero_solicitud,
+                fecha_de_solicitud,
+                identificacion,
+                motivos,
+                adjuntos,
+                materias,
+                periodo,
+            };
+
+            if n_sol.starts_with("ACM") {
+                autorizacion_menor_carga_minima.push(solicitud);
+            } else {
+                dbg!(captures.get(0));
             }
         } else if let Some(captures) = SOLICITUD_RTG.captures(chunk) {
             let nombre_del_estudiante = captures
@@ -363,12 +452,15 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 fecha_de_solicitud,
                 identificacion,
                 motivos,
-                anexos,
+                adjuntos: anexos,
                 materias,
                 periodo,
             };
             if n_sol.starts_with("RTG") {
                 registro_trabajo_grado.push(solicitud);
+            } else {
+                eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
+                eprintln!("--------------------");
             }
         } else {
             eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
@@ -396,7 +488,6 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
     if !registro_trabajo_grado.is_empty() {
         solicitudes.insert(RTG.to_string(), registro_trabajo_grado);
     }
-
     if !autorizacion_menor_carga_minima.is_empty() {
         solicitudes.insert(ACM.to_string(), autorizacion_menor_carga_minima);
     }
@@ -434,7 +525,7 @@ fn write_data_to_excel(
             j += 1;
             worksheet.write_string_with_format(0, j, "Materias", &bold_format)?;
             j += 1;
-        } else if sheet_name.starts_with(CS) {
+        } else if sheet_name.starts_with(CS) || sheet_name.starts_with(ACM) {
             worksheet.write_string_with_format(0, j, "Adjuntos", &bold_format)?;
             j += 1;
             worksheet.write_string_with_format(0, j, "Periodo", &bold_format)?;
@@ -470,7 +561,11 @@ fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, Str
         .to_string_lossy()
         .to_string();
 
-    if let Some(output_path) = FileDialog::new().add_filter("Excel", &["xlsx"]).set_file_name(excel_name).save_file() {
+    if let Some(output_path) = FileDialog::new()
+        .add_filter("Excel", &["xlsx"])
+        .set_file_name(excel_name)
+        .save_file()
+    {
         // Your existing processing logic should be integrated here
         let bytes = std::fs::read(pdf_path).expect("Error reading PDF file crate");
         let out = pdf_extract::extract_text_from_mem(&bytes)
@@ -549,7 +644,7 @@ impl eframe::App for PdfProcessorApp {
             if ui.button("Procesar PDF").clicked() {
                 if let Some(path) = &self.pdf_path {
                     match process_pdf(path.clone()) {
-                        Ok(_) => self.status = "Aparentemente se pudo, pero recuerden validar que el excel si está bien\n\n\nEspero sea de su agrado.\n  -JAVM".to_string(),
+                        Ok(_) => self.status = format!("{} procesado\n\nValida que el excel no contenga errores, esto aún es experimental.\nEspero sea de su agrado.\n\t-JAVM", path.clone().file_name().expect("pdf path").to_string_lossy()),
                         Err(e) => self.status = format!("Error: {}", e),
                     }
                 }
