@@ -1,10 +1,10 @@
 [package]
 name = "reps-sia"
-version = "0.2.9"
+version = "0.3.0"
 edition = "2021"
 repository = "https://github.com/jovillarrealm/reps-sia"
 authors = ["Jorge A. Villarreal Márquez <javillarrm@eafit.edu.co>"]
-manufacturer = "muh will to live"
+#manufacturer = "muh will to live"
 description = "Esto coge los reportes Agenda del SIA y los pasa a un xlsx"
 license = "Apache-2.0"
 
@@ -24,6 +24,7 @@ rfd = "0.15.2"
 eframe = "0.31.1"
 image = "0.25.5"
 chrono = "0.4.40"
+once_cell = "1.20.3"
 
 # The profile that 'dist' will build with
 [profile.dist]
