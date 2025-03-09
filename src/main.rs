@@ -85,49 +85,54 @@ const ANOTACIONES_SEP: &str = "ID |ESPACIO PARA ANOTACIONES";
 const _HALF_SECTION_STR_SEP: &str = r"ID\s+\|[A-ZÁÉÍÓÚÜ\s]+";
 const SOLICITUD_ESTUDIANTE_SEP: &str = r"\d+\.\s*\|\s*SOLICITUD ESTUDIANTE\s*";
 const SECTION_STR: &str = concat!(r"ID\s+\|[A-ZÁÉÍÓÚÜ\s]+", "\n\n", r"ID\s+\|[A-ZÁÉÍÓÚÜ\s]+");
+
 static ID_SECTIONS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(SECTION_STR).unwrap());
 static SOLICITUD_SECCION_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(SOLICITUD_ESTUDIANTE_SEP).unwrap());
-const RS_RE_RTG: &str = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*";
+
+const DOC_ANEX_DOC: &str = r"(\s*documento\s+anexo\s+Documento\s*)";
+const ANOTACIONES: &str = "ANOTACIONES";
+
+const CEA: &str = "CANCELACIÓN EXTEMP. ASIGNATURAS";
 const RS_RE_CEA: &str = concat!(
     r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:materias relacionadas a la solicitud\s*asignatura grp nombre(.*))",
 );
+static SOLICITUD_CEA: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(RS_RE_CEA)
+    .map_err(|e| format!("Error compiling regex: {}", e))
+    .unwrap()
+});
+
+const CS: &str = "CANCELACIÓN SEMESTRE";
 const RS_RE_CS: &str = concat!(
     r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:periodo para el que solicita cancelación de semestre\s*(.*))",
 );
+static SOLICITUD_CS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(RS_RE_CS)
+    .map_err(|e| format!("Error compiling regex: {}", e))
+    .unwrap()
+});
+
+
+const ACM: &str = "AUTORIZACIÓN CARGA MÍNIMA";
 const RS_RE_ACM: &str = concat!(
     r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:periodo para el que solicita carga mínima\s*(.*))",
 );
-const DOC_ANEX_DOC: &str = r"(documento anexo  Documento\s*)+";
-//(?:documento anexo  Documento\s*)*
-const ANOTACIONES: &str = "ANOTACIONES";
-const CEA: &str = "CANCELACIÓN EXTEMP. ASIGNATURAS";
-const ACM: &str = "AUTORIZACIÓN CARGA MÍNIMA";
-const RTG: &str = "REGISTRO TRABAJO GRADO";
-const CS: &str = "CANCELACIÓN SEMESTRE";
-
-static SOLICITUD_CEA: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(RS_RE_CEA)
-        .map_err(|e| format!("Error compiling regex: {}", e))
-        .unwrap()
-});
-static SOLICITUD_CS: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(RS_RE_CS)
-        .map_err(|e| format!("Error compiling regex: {}", e))
-        .unwrap()
-});
 static SOLICITUD_ACM: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_ACM)
         .map_err(|e| format!("Error compiling regex: {}", e))
         .unwrap()
-});
+    });
 
+    
+const RTG: &str = "REGISTRO TRABAJO GRADO";
+const RS_RE_RTG: &str = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*(?:anexar otros documentos físicos\s*(.*))";
 static SOLICITUD_RTG: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_RTG)
         .map_err(|e| format!("Error compiling regex: {}", e))
@@ -443,7 +448,12 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
             };
             let motivos = None;
             let materias = None;
-            let anexos = None;
+            
+            let last_field_capture = captures.get(6).map_or("", |m| m.as_str());
+            
+            let adjuntos = Some(DOC_ANEX_DOC_RE.find_iter(last_field_capture).count());
+
+            let _second = DOC_ANEX_DOC_RE.replace(last_field_capture, "");
             let periodo = None;
             let solicitud = Solicitud {
                 nombre_del_estudiante,
@@ -452,7 +462,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 fecha_de_solicitud,
                 identificacion,
                 motivos,
-                adjuntos: anexos,
+                adjuntos,
                 materias,
                 periodo,
             };
@@ -462,6 +472,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
                 eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
                 eprintln!("--------------------");
             }
+
         } else {
             eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
             eprintln!("--------------------");
