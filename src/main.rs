@@ -613,7 +613,6 @@ fn load_icon() -> Option<IconData> {
 #[derive(Parser, Debug)]
 #[command(
     author = "Jorge A. VM",
-    version = "0.2.0",
     about = "PDF to Text Converter"
 )]
 struct Cli {
