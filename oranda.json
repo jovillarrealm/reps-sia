@@ -1,5 +1,8 @@
 {
     "styles": {
         "theme" : "hacker"
-    }
+    },
+    "build": {
+    "path_prefix": "reps-sia"
+  }
 }
