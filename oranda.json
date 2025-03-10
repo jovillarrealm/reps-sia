@@ -1,14 +1,14 @@
 {
   "styles": {
-      "theme" : "hacker"
+    "theme": "hacker"
   },
   "build": {
-  "path_prefix": "reps-sia"
-},
-"components": {
+    "path_prefix": "reps-sia"
+  },
+  "components": {
     "changelog": true,
     "artifacts": {
-  "cargo_dist": true
-}
-}
+      "cargo_dist": true
+    }
+  }
 }
