@@ -10,6 +10,8 @@ use rust_xlsxwriter::{Format, Workbook, XlsxError};
 use std::collections::{HashMap, VecDeque};
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
 
 #[derive(Debug, Default)]
 struct Solicitud {
@@ -95,9 +97,9 @@ const ANOTACIONES: &str = "ANOTACIONES";
 
 const CEA: &str = "CANCELACIÓN EXTEMP. ASIGNATURAS";
 const RS_RE_CEA: &str = concat!(
-    r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
+    r"(?s)nombre del estudiante\s*(.+)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([A-Z\d\s-]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
-    r"(?:materias relacionadas a la solicitud\s*asignatura grp nombre(.*))",
+    r"(?:materias relacionadas a la solicitud\s*(asignatura grp nombre)?(.*))",
 );
 static SOLICITUD_CEA: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_CEA)
@@ -107,7 +109,7 @@ static SOLICITUD_CEA: Lazy<Regex> = Lazy::new(|| {
 
 const CS: &str = "CANCELACIÓN SEMESTRE";
 const RS_RE_CS: &str = concat!(
-    r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
+    r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([A-Z\d\s-]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:periodo para el que solicita cancelación de semestre\s*(.*))",
 );
@@ -145,10 +147,11 @@ static DOC_ANEX_DOC_RE: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
-fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solicitud>>, String> {
+fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Solicitud>>, Vec<&str>), String> {
     // Split anotaciones from the rest of sections
 
     let pdf_contents: Vec<&str> = pdf_contents.split(ANOTACIONES_SEP).collect();
+    let mut unhandled: Vec<&str> = Vec::new();
     let anotaciones = pdf_contents[1];
     let pdf_contents = pdf_contents[0];
 
@@ -171,7 +174,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
         .collect::<Vec<&str>>();
 
     // Simplified regex for a single solicitud block
-    let _rs_re = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*";
+    //let rs_re = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*";
 
     let mut cancelaciones_extemporanea_asignaturas: Vec<Solicitud> = Vec::new();
     let mut cancelacion_extemporanea_asignaturas_posgrado: Vec<Solicitud> = Vec::new();
@@ -468,13 +471,11 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
             };
             if n_sol.starts_with("RTG") {
                 registro_trabajo_grado.push(solicitud);
-            } else {
-                eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
-                eprintln!("--------------------");
-            }
+            } 
 
         } else {
             eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
+            unhandled.push(chunk);
             eprintln!("--------------------");
         }
     }
@@ -510,8 +511,12 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<HashMap<String, Vec<Solic
         solicitudes.insert(ANOTACIONES.to_string(), vec![bs]);
     }
 
-    Ok(solicitudes)
+    
+
+    Ok((solicitudes, unhandled))
 }
+
+
 
 fn write_data_to_excel(
     data: &HashMap<String, Vec<Solicitud>>,
@@ -559,6 +564,23 @@ fn write_data_to_excel(
     Ok(())
 }
 
+
+fn write_unhandled(txt_path:PathBuf, unhandled: Vec<&str>) -> std::io::Result<()> {
+    // Create or open the file for writing.
+    let mut file = File::create(txt_path)?;
+
+    // Iterate through the lines and write each one to the file, followed by a newline.
+    for line in unhandled {
+        writeln!(file, "{}", line)?;
+        writeln!(file, "--------------------------------")?;
+
+    }
+
+    // The file is automatically closed when `file` goes out of scope.
+    Ok(())
+
+}
+
 fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, String> {
     // Generate output paths
     let file_stem = pdf_path.file_stem().unwrap().to_string_lossy().to_string();
@@ -572,6 +594,12 @@ fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, Str
         .to_string_lossy()
         .to_string();
 
+    let txt_path = pdf_path
+        .parent()
+        .unwrap()
+        .join(format!("{}.txt", file_stem));
+    
+
     if let Some(output_path) = FileDialog::new()
         .add_filter("Excel", &["xlsx"])
         .set_file_name(excel_name)
@@ -583,7 +611,10 @@ fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, Str
             .expect("Error extracting text from PDF crate");
 
         // Extract data from text
-        let data = read_and_extract_data(&out)?;
+        let (data, unhandled) = read_and_extract_data(&out)?;
+        if ! unhandled.is_empty(){
+            write_unhandled(txt_path, unhandled).expect("Tried to write txt but failed");
+        }
 
         // Write data to Excel
         write_data_to_excel(&data, &output_path)
@@ -654,7 +685,7 @@ impl eframe::App for PdfProcessorApp {
             if ui.button("Procesar PDF").clicked() {
                 if let Some(path) = &self.pdf_path {
                     match process_pdf(path.clone()) {
-                        Ok(_) => self.status = format!("{} procesado\n\nValida que el excel no contenga errores, esto aún es experimental.\nEspero sea de su agrado.\n\t-JAVM", path.clone().file_name().expect("pdf path").to_string_lossy()),
+                        Ok(_) => self.status = format!("{} procesado\n\nValida que el excel no contenga errores, esto aún es experimental.\nEspero sea de su agrado.\nEn caso de solicitudes sin manejar, se intentan escribir en un txt\n\t-JAVM", path.clone().file_name().expect("pdf path").to_string_lossy()),
                         Err(e) => self.status = format!("Error: {}", e),
                     }
                 }
