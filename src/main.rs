@@ -99,7 +99,7 @@ const CEA: &str = "CANCELACIÓN EXTEMP. ASIGNATURAS";
 const RS_RE_CEA: &str = concat!(
     r"(?s)nombre del estudiante\s*(.+)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([A-Z\d\s-]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
-    r"(?:materias relacionadas a la solicitud\s*(asignatura grp nombre)?(.*))",
+    r"(?:materias relacionadas a la solicitud\s*(?:asignatura grp nombre)?(.*))",
 );
 static SOLICITUD_CEA: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_CEA)
@@ -122,7 +122,7 @@ static SOLICITUD_CS: Lazy<Regex> = Lazy::new(|| {
 
 const ACM: &str = "AUTORIZACIÓN CARGA MÍNIMA";
 const RS_RE_ACM: &str = concat!(
-    r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
+    r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([A-Z\d\s-]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*",
     r"(?:motivos\s*(.*))(?:anexar otros documentos físicos\s*(.*))",
     r"(?:periodo para el que solicita carga mínima\s*(.*))",
 );
@@ -201,8 +201,9 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Soli
             let numero_solicitud = captures
                 .get(4)
                 .map_or("", |m| m.as_str())
-                .trim()
-                .to_string();
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("");
             let n_sol = numero_solicitud.clone();
             let fecha_de_solicitud_str = captures
                 .get(5)
@@ -278,8 +279,9 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Soli
             let numero_solicitud = captures
                 .get(4)
                 .map_or("", |m| m.as_str())
-                .trim()
-                .to_string();
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("");
             let n_sol = numero_solicitud.clone();
             let fecha_de_solicitud_str = captures
                 .get(5)
@@ -355,8 +357,9 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Soli
             let numero_solicitud = captures
                 .get(4)
                 .map_or("", |m| m.as_str())
-                .trim()
-                .to_string();
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("");
             let n_sol = numero_solicitud.clone();
             let fecha_de_solicitud_str = captures
                 .get(5)
