@@ -8,10 +8,10 @@ use regex::Regex;
 use rfd::FileDialog;
 use rust_xlsxwriter::{Format, Workbook, XlsxError};
 use std::collections::{HashMap, VecDeque};
-use std::io::Cursor;
-use std::path::PathBuf;
 use std::fs::File;
+use std::io::Cursor;
 use std::io::Write;
+use std::path::PathBuf;
 
 #[derive(Debug, Default)]
 struct Solicitud {
@@ -103,8 +103,8 @@ const RS_RE_CEA: &str = concat!(
 );
 static SOLICITUD_CEA: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_CEA)
-    .map_err(|e| format!("Error compiling regex: {}", e))
-    .unwrap()
+        .map_err(|e| format!("Error compiling regex: {}", e))
+        .unwrap()
 });
 
 const CS: &str = "CANCELACIÓN SEMESTRE";
@@ -115,10 +115,9 @@ const RS_RE_CS: &str = concat!(
 );
 static SOLICITUD_CS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_CS)
-    .map_err(|e| format!("Error compiling regex: {}", e))
-    .unwrap()
+        .map_err(|e| format!("Error compiling regex: {}", e))
+        .unwrap()
 });
-
 
 const ACM: &str = "AUTORIZACIÓN CARGA MÍNIMA";
 const RS_RE_ACM: &str = concat!(
@@ -130,9 +129,8 @@ static SOLICITUD_ACM: Lazy<Regex> = Lazy::new(|| {
     Regex::new(RS_RE_ACM)
         .map_err(|e| format!("Error compiling regex: {}", e))
         .unwrap()
-    });
+});
 
-    
 const RTG: &str = "REGISTRO TRABAJO GRADO";
 const RS_RE_RTG: &str = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*(?:anexar otros documentos físicos\s*(.*))";
 static SOLICITUD_RTG: Lazy<Regex> = Lazy::new(|| {
@@ -147,7 +145,9 @@ static DOC_ANEX_DOC_RE: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
-fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Solicitud>>, Vec<&str>), String> {
+fn read_and_extract_data(
+    pdf_contents: &str,
+) -> Result<(HashMap<String, Vec<Solicitud>>, Vec<&str>), String> {
     // Split anotaciones from the rest of sections
 
     let pdf_contents: Vec<&str> = pdf_contents.split(ANOTACIONES_SEP).collect();
@@ -333,9 +333,8 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Soli
             };
             if n_sol.starts_with("CS") {
                 cancelaciones_semestre.push(solicitud);
-            } else if n_sol.starts_with("ACM")  {
+            } else if n_sol.starts_with("ACM") {
                 autorizacion_menor_carga_minima.push(solicitud);
-                
             } else {
                 dbg!(captures.get(0));
             }
@@ -454,9 +453,9 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Soli
             };
             let motivos = None;
             let materias = None;
-            
+
             let last_field_capture = captures.get(6).map_or("", |m| m.as_str());
-            
+
             let adjuntos = Some(DOC_ANEX_DOC_RE.find_iter(last_field_capture).count());
 
             let _second = DOC_ANEX_DOC_RE.replace(last_field_capture, "");
@@ -474,8 +473,7 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Soli
             };
             if n_sol.starts_with("RTG") {
                 registro_trabajo_grado.push(solicitud);
-            } 
-
+            }
         } else {
             eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
             unhandled.push(chunk);
@@ -514,12 +512,8 @@ fn read_and_extract_data(pdf_contents: &str) -> Result<(HashMap<String, Vec<Soli
         solicitudes.insert(ANOTACIONES.to_string(), vec![bs]);
     }
 
-    
-
     Ok((solicitudes, unhandled))
 }
-
-
 
 fn write_data_to_excel(
     data: &HashMap<String, Vec<Solicitud>>,
@@ -567,8 +561,7 @@ fn write_data_to_excel(
     Ok(())
 }
 
-
-fn write_unhandled(txt_path:PathBuf, unhandled: Vec<&str>) -> std::io::Result<()> {
+fn write_unhandled(txt_path: PathBuf, unhandled: Vec<&str>) -> std::io::Result<()> {
     // Create or open the file for writing.
     let mut file = File::create(txt_path)?;
 
@@ -576,12 +569,10 @@ fn write_unhandled(txt_path:PathBuf, unhandled: Vec<&str>) -> std::io::Result<()
     for line in unhandled {
         writeln!(file, "{}", line)?;
         writeln!(file, "--------------------------------")?;
-
     }
 
     // The file is automatically closed when `file` goes out of scope.
     Ok(())
-
 }
 
 fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, String> {
@@ -601,7 +592,6 @@ fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, Str
         .parent()
         .unwrap()
         .join(format!("{}.txt", file_stem));
-    
 
     if let Some(output_path) = FileDialog::new()
         .add_filter("Excel", &["xlsx"])
@@ -615,7 +605,7 @@ fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>, Str
 
         // Extract data from text
         let (data, unhandled) = read_and_extract_data(&out)?;
-        if ! unhandled.is_empty(){
+        if !unhandled.is_empty() {
             write_unhandled(txt_path, unhandled).expect("Tried to write txt but failed");
         }
 
@@ -645,10 +635,7 @@ fn load_icon() -> Option<IconData> {
 }
 
 #[derive(Parser, Debug)]
-#[command(
-    author = "Jorge A. VM",
-    about = "PDF to Text Converter"
-)]
+#[command(author = "Jorge A. VM", about = "PDF to Text Converter")]
 struct Cli {
     #[arg(value_name = "PDF_PATH")]
     pdf_path: PathBuf,
@@ -658,7 +645,7 @@ struct Cli {
 }
 
 struct PdfProcessorApp {
-    pdf_path: Option<PathBuf>,
+    pdf_path: Option<Vec<PathBuf>>,
     status: String,
 }
 
@@ -675,21 +662,27 @@ impl eframe::App for PdfProcessorApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Procesador de Reportes de Agenda del SIA");
 
-            if ui.button("Seleccione PDF").clicked() {
-                if let Some(path) = FileDialog::new().add_filter("PDF", &["pdf"]).pick_file() {
+            if ui.button("Seleccione PDF(s)").clicked() {
+                if let Some(path) = FileDialog::new().add_filter("PDF", &["pdf"]).pick_files() {
                     self.pdf_path = Some(path);
                 }
             }
 
-            if let Some(path) = &self.pdf_path {
-                ui.label(format!("PDF Seleccionado: {}", path.display()));
+            if let Some(paths) = &self.pdf_path {
+                ui.label(format!("PDF Seleccionado: {}", paths
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<String>>()
+                .join("\n")));
             }
 
             if ui.button("Procesar PDF").clicked() {
-                if let Some(path) = &self.pdf_path {
-                    match process_pdf(path.clone()) {
-                        Ok(_) => self.status = format!("{} procesado\n\nValida que el excel no contenga errores, esto aún es experimental.\nEspero sea de su agrado.\nEn caso de solicitudes sin manejar, se intentan escribir en un txt\n\t-JAVM", path.clone().file_name().expect("pdf path").to_string_lossy()),
-                        Err(e) => self.status = format!("Error: {}", e),
+                if let Some(paths) = &self.pdf_path {
+                    for pdf_path in paths{
+                        match process_pdf(pdf_path.clone()) {
+                            Ok(_) => self.status = format!("{} procesado\n\nValida que el excel no contenga errores, esto aún es experimental.\nEspero sea de su agrado.\nEn caso de solicitudes sin manejar, se intentan escribir en un txt\n\t-JAVM", pdf_path.clone().file_name().expect("pdf path").to_string_lossy()),
+                            Err(e) => self.status = format!("Error: {}", e),
+                        }
                     }
                 }
             }
