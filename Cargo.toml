@@ -1,6 +1,6 @@
 [package]
 name = "reps-sia"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 repository = "https://github.com/jovillarrealm/reps-sia"
 authors = ["Jorge A. Villarreal Márquez <javillarrm@eafit.edu.co>"]

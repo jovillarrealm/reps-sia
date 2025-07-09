@@ -514,7 +514,9 @@ pub fn write_data_to_excel(
     excel_path: &PathBuf,
 ) -> Result<(), XlsxError> {
     let mut workbook = Workbook::new();
-    for (sheet_name, sheet_data) in data {
+    let mut ordered_data: Vec<(&String, &Vec<Solicitud>)> = data.into_iter().collect();
+    ordered_data.sort_by(|a, b| a.0.cmp(&b.0));
+    for (sheet_name, sheet_data) in ordered_data {
         let worksheet = workbook.add_worksheet().set_name(sheet_name)?;
 
         // Add a bold format for the headers.
