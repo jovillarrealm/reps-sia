@@ -16,7 +16,6 @@ eula = true
 
 [dependencies]
 rust_xlsxwriter = "0.84.0"
-clap = { version = "4.5.31", features = ["derive"] }
 pdf-extract = "0.8.2"
 regex = "1.11.1"
 rfd = "0.15.2"

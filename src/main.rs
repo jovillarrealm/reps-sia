@@ -1,4 +1,4 @@
-use clap::Parser;
+//use clap::Parser;
 use eframe::egui;
 use eframe::egui::IconData;
 use image::ImageReader;
@@ -24,15 +24,17 @@ fn load_icon() -> Option<IconData> {
     })
 }
 
+/*
 #[derive(Parser, Debug)]
 #[command(author = "Jorge A. VM", about = "PDF to Text Converter")]
 struct Cli {
     #[arg(value_name = "PDF_PATH")]
     pdf_path: PathBuf,
-
+    
     #[arg(short, long, default_value = ".", value_name = "OUTPUT_DIR")]
     output_dir: PathBuf,
 }
+*/
 
 struct PdfProcessorApp {
     pdf_path: Option<Vec<PathBuf>>,
