@@ -9,9 +9,9 @@ Programa que pasa los pdf de reportes de agenda del SIA a formato excel.
 Para Windows usar el comando de powershell. O el msi para x86_64.
 O simplemente descarge el último ejectuable.
 
-## Descargas reps-sia 0.4.1
+## Descargas reps-sia
 
-|  File  | Platform | Checksum |
+|  Archivo  | Platforma | Checksum |
 |--------|----------|----------|
 | [reps-sia-aarch64-apple-darwin.tar.xz](https://github.com/jovillarrealm/reps-sia/releases/download/v0.4.1/reps-sia-aarch64-apple-darwin.tar.xz) | Apple Silicon macOS | [checksum](https://github.com/jovillarrealm/reps-sia/releases/download/v0.4.1/reps-sia-aarch64-apple-darwin.tar.xz.sha256) |
 | [reps-sia-x86_64-apple-darwin.tar.xz](https://github.com/jovillarrealm/reps-sia/releases/download/v0.4.1/reps-sia-x86_64-apple-darwin.tar.xz) | Intel macOS | [checksum](https://github.com/jovillarrealm/reps-sia/releases/download/v0.4.1/reps-sia-x86_64-apple-darwin.tar.xz.sha256) |
@@ -23,8 +23,6 @@ O simplemente descarge el último ejectuable.
 
 ## Uso
 
-De momento toca llamar el comando
-
-    reps-sia.exe 
+Descomprimir y usar el programa
 
 Para poder abrir el programa...
