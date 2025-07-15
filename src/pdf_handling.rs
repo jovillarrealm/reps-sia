@@ -65,7 +65,7 @@ impl Iterator for SolicitudIterator<'_> {
 }
 
 impl Solicitud {
-    fn iter(&self) -> SolicitudIterator {
+    fn iter(&self) -> SolicitudIterator<'_> {
         SolicitudIterator {
             solicitud: self,
             index: 0,
