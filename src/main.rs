@@ -73,7 +73,7 @@ impl eframe::App for PdfProcessorApp {
                     for pdf_path in paths{
                         match pdf_handling::process_pdf(pdf_path.clone()) {
                             Ok(_) => self.status = format!("{} procesado\n\n Por favor valida que el excel no contenga errores, este software aún es experimental.\n\nEn caso de haber solicitudes sin manejar, se intentan escribir en un archivo txt\n\t-JAVM", pdf_path.clone().file_name().expect("pdf path").to_string_lossy()),
-                            Err(e) => self.status = format!("Error: {}", e),
+                            Err(e) => self.status = format!("Error: {e}"),
                         }
                     }
                 }

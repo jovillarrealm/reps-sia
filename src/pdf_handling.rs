@@ -99,7 +99,7 @@ const RS_RE_CEA: &str = concat!(
 );
 static SOLICITUD_CEA: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(RS_RE_CEA)
-        .map_err(|e| format!("Error compiling regex: {}", e))
+        .map_err(|e| format!("Error compiling regex: {e}"))
         .unwrap()
 });
 
@@ -111,7 +111,7 @@ const RS_RE_CS: &str = concat!(
 );
 static SOLICITUD_CS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(RS_RE_CS)
-        .map_err(|e| format!("Error compiling regex: {}", e))
+        .map_err(|e| format!("Error compiling regex: {e}"))
         .unwrap()
 });
 
@@ -123,7 +123,7 @@ const RS_RE_ACM: &str = concat!(
 );
 static SOLICITUD_ACM: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(RS_RE_ACM)
-        .map_err(|e| format!("Error compiling regex: {}", e))
+        .map_err(|e| format!("Error compiling regex: {e}"))
         .unwrap()
 });
 
@@ -131,13 +131,13 @@ const RTG: &str = "REGISTRO TRABAJO GRADO";
 const RS_RE_RTG: &str = r"(?s)nombre del estudiante\s*(.+?)\s*identificación\s*(\d+\s*\d*)\s*plan de estudios\s*(.+?)\s*número y fecha de la solicitud\s*([^ ]+)\s+(\d\s*\d/\d{2}/\d{4}|\d{2}/\d{2}/\d{2})\s*(?:anexar otros documentos físicos\s*(.*))";
 static SOLICITUD_RTG: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(RS_RE_RTG)
-        .map_err(|e| format!("Error compiling regex: {}", e))
+        .map_err(|e| format!("Error compiling regex: {e}"))
         .unwrap()
 });
 
 static DOC_ANEX_DOC_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(DOC_ANEX_DOC)
-        .map_err(|e| format!("Error compiling regex: {}", e))
+        .map_err(|e| format!("Error compiling regex: {e}"))
         .unwrap()
 });
 
@@ -212,10 +212,9 @@ pub fn read_and_extract_data(
             let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
                 Ok(date) => date,
                 Err(e) => {
-                    eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
+                    eprintln!("Error parsing date '{fecha_de_solicitud_str}': {e}");
                     return Err(format!(
-                        "Error parsing date '{}': {}",
-                        fecha_de_solicitud_str, e
+                        "Error parsing date '{fecha_de_solicitud_str}': {e}"
                     ));
                 }
             };
@@ -257,7 +256,7 @@ pub fn read_and_extract_data(
                 cancelaciones_extemporanea_asignaturas.push(solicitud)
             } else {
                 println!("Warning: Eh? QUE ES ESTO?????");
-                println!("{}", chunk)
+                println!("{chunk}")
             }
         } else if let Some(captures) = SOLICITUD_CS.captures(chunk) {
             let nombre_del_estudiante = captures
@@ -290,10 +289,9 @@ pub fn read_and_extract_data(
             let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
                 Ok(date) => date,
                 Err(e) => {
-                    eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
+                    eprintln!("Error parsing date '{fecha_de_solicitud_str}': {e}");
                     return Err(format!(
-                        "Error parsing date '{}': {}",
-                        fecha_de_solicitud_str, e
+                        "Error parsing date '{fecha_de_solicitud_str}': {e}"
                     ));
                 }
             };
@@ -367,10 +365,9 @@ pub fn read_and_extract_data(
             let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
                 Ok(date) => date,
                 Err(e) => {
-                    eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
+                    eprintln!("Error parsing date '{fecha_de_solicitud_str}': {e}");
                     return Err(format!(
-                        "Error parsing date '{}': {}",
-                        fecha_de_solicitud_str, e
+                        "Error parsing date '{fecha_de_solicitud_str}': {e}"
                     ));
                 }
             };
@@ -442,10 +439,9 @@ pub fn read_and_extract_data(
             let fecha_de_solicitud = match parse_date(&fecha_de_solicitud_str) {
                 Ok(date) => date,
                 Err(e) => {
-                    eprintln!("Error parsing date '{}': {}", fecha_de_solicitud_str, e);
+                    eprintln!("Error parsing date '{fecha_de_solicitud_str}': {e}");
                     return Err(format!(
-                        "Error parsing date '{}': {}",
-                        fecha_de_solicitud_str, e
+                        "Error parsing date '{fecha_de_solicitud_str}': {e}"
                     ));
                 }
             };
@@ -473,7 +469,7 @@ pub fn read_and_extract_data(
                 registro_trabajo_grado.push(solicitud);
             }
         } else {
-            eprintln!("Warning: Could not parse solicitud in chunk:\n{}", chunk);
+            eprintln!("Warning: Could not parse solicitud in chunk:\n{chunk}");
             unhandled.push(chunk);
             eprintln!("--------------------");
         }
@@ -514,8 +510,8 @@ pub fn write_data_to_excel(
     excel_path: &PathBuf,
 ) -> Result<(), XlsxError> {
     let mut workbook = Workbook::new();
-    let mut ordered_data: Vec<(&String, &Vec<Solicitud>)> = data.into_iter().collect();
-    ordered_data.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut ordered_data: Vec<(&String, &Vec<Solicitud>)> = data.iter().collect();
+    ordered_data.sort_by(|a, b| a.0.cmp(b.0));
     for (sheet_name, sheet_data) in ordered_data {
         let worksheet = workbook.add_worksheet().set_name(sheet_name)?;
 
@@ -563,7 +559,7 @@ fn write_unhandled(txt_path: PathBuf, unhandled: Vec<&str>) -> std::io::Result<(
 
     // Iterate through the lines and write each one to the file, followed by a newline.
     for line in unhandled {
-        writeln!(file, "{}", line)?;
+        writeln!(file, "{line}")?;
         writeln!(file, "--------------------------------")?;
     }
 
@@ -577,7 +573,7 @@ pub fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>,
     let excel_path = pdf_path
         .parent()
         .unwrap()
-        .join(format!("{}.xlsx", file_stem));
+        .join(format!("{file_stem}.xlsx"));
     let excel_name = excel_path
         .file_name()
         .unwrap()
@@ -587,7 +583,7 @@ pub fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>,
     let txt_path = pdf_path
         .parent()
         .unwrap()
-        .join(format!("{}.txt", file_stem));
+        .join(format!("{file_stem}.txt"));
 
     if let Some(output_path) = FileDialog::new()
         .add_filter("Excel", &["xlsx"])
@@ -607,7 +603,7 @@ pub fn process_pdf(pdf_path: PathBuf) -> Result<HashMap<String, Vec<Solicitud>>,
 
         // Write data to Excel
         write_data_to_excel(&data, &output_path)
-            .map_err(|e| format!("Failed to write Excel file: {}", e))?;
+            .map_err(|e| format!("Failed to write Excel file: {e}"))?;
         Ok(data)
     } else {
         Err("No output file selected".to_string())
